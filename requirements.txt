@@ -1,20 +1,9 @@
 chess
 pyautogui
-pyperclip
 opencv-python
-
-# Jupyter and related packages
-jupyter
-notebook
 
 # TensorFlow with GPU support (version can be adjusted)
 tensorflow==2.12.0
-
-# PyTorch with GPU support
-torch==2.0.0+cu117
-torchvision==0.15.1+cu117
-torchaudio==2.0.0+cu117
--f https://download.pytorch.org/whl/torch_stable.html
 
 # Common data science libraries
 numpy
@@ -27,12 +16,3 @@ seaborn
 scipy
 h5py
 pillow
-requests
-
-# Optional: Jupyter extensions and widgets
-jupyterlab
-ipywidgets
-
-transformers
-
-datasets
