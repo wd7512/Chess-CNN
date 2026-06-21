@@ -1,10 +1,3 @@
-"""Interface to the minimax chess engine.
-
-Wraps Intermediate_Engines.min_maxN_pruned with root-only book lookup.
-Interface:
-    pick_move(fen: str, is_white: bool) -> str
-"""
-
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -14,5 +7,10 @@ import chess
 
 
 def pick_move(fen, is_white):
-    """Pick the best move for the given FEN position. Returns UCI string."""
-    pass
+    board = chess.Board(fen)
+    board.castling_rights = chess.BB_EMPTY
+    board.turn = is_white
+    move = min_maxN_pruned(board, 3, is_root=True)
+    if move is None:
+        raise RuntimeError("Engine returned no move for position")
+    return move.uci()

@@ -1,6 +1,35 @@
 """Shared fixtures for Chess-CNN tests."""
+import os
+from pathlib import Path
+
 import chess
 import pytest
+
+TESTS_DIR = Path(__file__).parent
+MOCK_HTML_PATH = TESTS_DIR / "mock_lichess_board.html"
+
+
+@pytest.fixture(scope="session")
+def browser():
+    """Playwright Chromium browser (session-scoped)."""
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        br = pw.chromium.launch(headless=True)
+        yield br
+        br.close()
+
+
+@pytest.fixture()
+def page(browser):
+    """Fresh page with mock Lichess board loaded."""
+    ctx = browser.new_context(
+        viewport={"width": 1280, "height": 900},
+        no_viewport=True,
+    )
+    p = ctx.new_page()
+    p.goto(MOCK_HTML_PATH.resolve().as_uri(), wait_until='networkidle')
+    yield p
+    ctx.close()
 
 
 @pytest.fixture

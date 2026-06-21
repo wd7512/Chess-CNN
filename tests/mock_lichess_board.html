@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Mock Lichess</title>
+<style>
+  .cg-wrap { width: 400px; height: 400px; }
+  cg-board { display: grid; grid-template-columns: repeat(8, 1fr); width: 400px; height: 400px; background: #ccc; }
+  square { width: 50px; height: 50px; display: inline-block; }
+  square.light { background: #f0d9b5; }
+  square.dark { background: #b58863; }
+  square.selected { outline: 3px solid yellow; }
+  square.last-move { background: rgba(155, 199, 0, 0.41); }
+  .rclock { padding: 10px; border: 1px solid #ccc; }
+  .rclock.running { background: #e8f5e9; }
+  .rclock-white { color: #000; }
+  .rclock-black { color: #000; }
+  .game-over { background: #fff; border: 2px solid red; padding: 20px; }
+  .result { font-size: 18px; }
+  .draw-offer { background: #fff; border: 1px solid blue; padding: 10px; }
+  .promotion-choice { background: #fff; border: 1px solid green; padding: 10px; }
+</style>
+</head>
+<body>
+<div id="board-container">
+  <div class="cg-wrap cgv1 orientation-white manipulable">
+    <cg-board>
+      <square class="light" data-coord="a8"></square>
+      <square class="dark" data-coord="b8"></square>
+      <square class="light" data-coord="c8"></square>
+      <square class="dark" data-coord="d8"></square>
+      <square class="light" data-coord="e8"></square>
+      <square class="dark" data-coord="f8"></square>
+      <square class="light" data-coord="g8"></square>
+      <square class="dark" data-coord="h8"></square>
+      <square class="dark" data-coord="a7"></square>
+      <square class="light" data-coord="b7"></square>
+      <square class="dark" data-coord="c7"></square>
+      <square class="light" data-coord="d7"></square>
+      <square class="dark" data-coord="e7"></square>
+      <square class="light" data-coord="f7"></square>
+      <square class="dark" data-coord="g7"></square>
+      <square class="light" data-coord="h7"></square>
+      <square class="light" data-coord="a6"></square>
+      <square class="dark" data-coord="b6"></square>
+      <square class="light" data-coord="c6"></square>
+      <square class="dark" data-coord="d6"></square>
+      <square class="light" data-coord="e6"></square>
+      <square class="dark" data-coord="f6"></square>
+      <square class="light" data-coord="g6"></square>
+      <square class="dark" data-coord="h6"></square>
+      <square class="dark" data-coord="a5"></square>
+      <square class="light" data-coord="b5"></square>
+      <square class="dark" data-coord="c5"></square>
+      <square class="light" data-coord="d5"></square>
+      <square class="dark" data-coord="e5"></square>
+      <square class="light" data-coord="f5"></square>
+      <square class="dark" data-coord="g5"></square>
+      <square class="light" data-coord="h5"></square>
+      <square class="light" data-coord="a4"></square>
+      <square class="dark" data-coord="b4"></square>
+      <square class="light" data-coord="c4"></square>
+      <square class="dark" data-coord="d4"></square>
+      <square class="light" data-coord="e4"></square>
+      <square class="dark" data-coord="f4"></square>
+      <square class="light" data-coord="g4"></square>
+      <square class="dark" data-coord="h4"></square>
+      <square class="dark" data-coord="a3"></square>
+      <square class="light" data-coord="b3"></square>
+      <square class="dark" data-coord="c3"></square>
+      <square class="light" data-coord="d3"></square>
+      <square class="dark" data-coord="e3"></square>
+      <square class="light" data-coord="f3"></square>
+      <square class="dark" data-coord="g3"></square>
+      <square class="light" data-coord="h3"></square>
+      <square class="light" data-coord="a2"></square>
+      <square class="dark" data-coord="b2"></square>
+      <square class="light" data-coord="c2"></square>
+      <square class="dark" data-coord="d2"></square>
+      <square class="light" data-coord="e2"></square>
+      <square class="dark" data-coord="f2"></square>
+      <square class="light" data-coord="g2"></square>
+      <square class="dark" data-coord="h2"></square>
+      <square class="dark" data-coord="a1"></square>
+      <square class="light" data-coord="b1"></square>
+      <square class="dark" data-coord="c1"></square>
+      <square class="light" data-coord="d1"></square>
+      <square class="dark" data-coord="e1"></square>
+      <square class="light" data-coord="f1"></square>
+      <square class="dark" data-coord="g1"></square>
+      <square class="light" data-coord="h1"></square>
+    </cg-board>
+  </div>
+  <div id="clocks">
+    <div class="rclock rclock-bottom rclock-white running"><span class="time">10:00</span></div>
+    <div class="rclock rclock-top rclock-black"><span class="time">10:00</span></div>
+  </div>
+</div>
+<script>
+  window.setOrientation = function(ori) {
+    const wrap = document.querySelector('.cg-wrap');
+    wrap.classList.remove('orientation-white', 'orientation-black');
+    wrap.classList.add('orientation-' + ori);
+  };
+  window.setTurn = function(color) {
+    const clocks = document.querySelectorAll('.rclock');
+    clocks.forEach(c => c.classList.remove('running'));
+    document.querySelector('.rclock-' + color).classList.add('running');
+  };
+  window.showGameOver = function(show) {
+    var el = document.querySelector('.game-over');
+    if (show && !el) {
+      var go = document.createElement('div');
+      go.className = 'game-over';
+      go.innerHTML = '<div class="result">1-0</div>';
+      document.getElementById('board-container').appendChild(go);
+    } else if (!show && el) {
+      el.remove();
+    }
+  };
+  window.showDrawOffer = function(show) {
+    var el = document.querySelector('.draw-offer');
+    if (show && !el) {
+      var d = document.createElement('div');
+      d.className = 'draw-offer';
+      d.innerHTML = '<button>Decline</button>';
+      document.getElementById('board-container').appendChild(d);
+    } else if (!show && el) {
+      el.remove();
+    }
+  };
+  window.addLastMove = function(coords) {
+    document.querySelectorAll('square.last-move').forEach(s => s.classList.remove('last-move'));
+    coords.forEach(c => {
+      document.querySelector('square[data-coord="' + c + '"]').classList.add('last-move');
+    });
+  };
+  window.clearSelected = function() {
+    document.querySelectorAll('square.selected').forEach(s => s.classList.remove('selected'));
+  };
+  document.addEventListener('click', function(e) {
+    var sq = e.target.closest('square');
+    if (!sq) return;
+    var prev = document.querySelector('square.selected');
+    if (prev) {
+      prev.classList.remove('selected');
+    } else {
+      sq.classList.add('selected');
+    }
+  });
+</script>
+</body>
+</html>
