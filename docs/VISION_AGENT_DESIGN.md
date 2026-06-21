@@ -44,6 +44,57 @@ chess_agent.py (orchestrator)
 
 **Per-move loop:** wait turn → screenshot → crop board → CNN classify → assemble FEN → engine picks move → compute click coords → click source → click dest → verify via DOM partial diff → retry up to 3x on failure → abort on 3 consecutive failures.
 
+```
+┌─────────────────────────────────────────────────────────────┐
+│  MAIN LOOP (chess_agent.py)                                 │
+│                                                             │
+│  0. PAGE STATE DETECTOR                                     │
+│     - URL + DOM: login | lobby | game | game_over           │
+│     - Login → ABORT: "Cookies expired"                     │
+│     - Lobby → ABORT: "No game in progress"                 │
+│     - Game over → log result, exit                          │
+│                                                             │
+│  while not game_over and step < MAX_STEPS:                  │
+│                                                             │
+│    1. WAIT for our turn                                     │
+│       - DOM: wait for turn indicator + board stability      │
+│       - Timeout: 60s → diagnostic screenshot → abort        │
+│                                                             │
+│    2. SCREENSHOT                                            │
+│       - Playwright page.screenshot() → PNG                  │
+│                                                             │
+│    3. EXTRACT BOARD                                         │
+│       - DOM: board element bounding rect                    │
+│       - OpenCV: crop + resize to 200×200                    │
+│                                                             │
+│    4. CLASSIFY PIECES (CNN)                                 │
+│       - 64 tiles × 25×25 grayscale → forward pass           │
+│       - 64 labels → FEN string                              │
+│                                                             │
+│    5. OVERRIDE ORIENTATION + ACTIVE COLOR FROM DOM          │
+│       - .orientation-* class, turn indicator                │
+│                                                             │
+│    6. ENGINE: pick_move(FEN) → move_uci                     │
+│       - min_maxN_pruned depth 3, book at root only          │
+│       - Illegal on reported FEN? → retry from step 3        │
+│                                                             │
+│    7. COMPUTE CLICK COORDINATES                             │
+│       - UCI → source/dest squares → pixel via board rect    │
+│       - Fixed math (corrects black perspective bug)         │
+│                                                             │
+│    8. DOM VERIFY: click + confirm                           │
+│       - click source → verify .selected (2s)                │
+│       - click dest → verify .selected gone (3s)             │
+│       - Partial diff: only squares in the move              │
+│       - Unchanged? → retry from step 7 (max 3x)             │
+│       - 3 consecutive failures → abort                      │
+│                                                             │
+│    9. LOG step, increment counter                           │
+│                                                             │
+│  End: log game result, save PGN                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
 **Key design decisions:**
 - Partial diff (only squares in the move) for verification — robust to opponent-in-flight moves
 - Board stability: poll bounding rect 500ms + check no CSS animation classes before screenshot
