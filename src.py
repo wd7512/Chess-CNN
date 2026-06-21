@@ -24,8 +24,7 @@ if template is None:
 
 new_opp = cv2.imread('new_opp.png', cv2.IMREAD_GRAYSCALE)
 if new_opp is None:
-    print("Error loading new_opp image.")
-    exit()
+    print("Warning: new_opp.png not found — New Opponent feature disabled.")
 else:
     print("Loaded Models and Template")
 
@@ -75,6 +74,70 @@ def one_hot_to_label(arr):
     return labels[np.argmax(arr)]
 
 
+def verify_move_played(expected_fen, max_retries=2):
+    """Verify that a move was actually played on the board.
+
+    Waits 1 second after the click, takes a screenshot, classifies the board,
+    and checks if the new FEN matches the expected post-move FEN.
+    Retries the click up to max_retries times if verification fails.
+    Returns True if verified, False if all retries exhausted.
+    """
+    for attempt in range(max_retries + 1):
+        time.sleep(1)
+        # Take a new screenshot
+        screenshot = screen_grab()
+        screenshot_gray = screenshot.convert('L')
+        grey_image = np.array(screenshot_gray)
+
+        # Find the board
+        res = cv2.matchTemplate(grey_image, template, cv2.TM_CCOEFF_NORMED)
+        threshold = np.max(res) - 0.05
+        if threshold < 0.1:
+            print(f"  Verify attempt {attempt+1}: board not found")
+            continue
+
+        loc = np.where(res >= threshold)
+        matched_regions = []
+        if len(loc[0]) > 0:
+            rects = []
+            for pt in zip(*loc[::-1]):
+                rects.append([pt[0], pt[1], template.shape[1], template.shape[0]])
+            rects, weights = cv2.groupRectangles(rects, groupThreshold=1, eps=0.2)
+            for rect in rects:
+                rx, ry, rw, rh = rect
+                matched_region = grey_image[ry:ry + rh, rx:rx + rw]
+                matched_regions.append(matched_region)
+
+        if not matched_regions:
+            print(f"  Verify attempt {attempt+1}: no matched regions")
+            continue
+
+        # Classify the board
+        image = cv2.resize(matched_regions[0], (200, 200))
+        inputs = []
+        for i in range(8):
+            for j in range(8):
+                inputs.append(image[i*25:(i+1)*25, j*25:(j+1)*25] / 255)
+
+        preds = piece_model(np.array(inputs))
+        ypred_labels = [one_hot_to_label(pred) for pred in preds]
+        current_fen = undo_prepare_fen(ypred_labels)
+
+        if not is_white:
+            new_f = current_fen.split("/")
+            new_f = [a[::-1] for a in new_f[::-1]]
+            current_fen = "/".join(new_f)
+
+        if current_fen == expected_fen:
+            print(f"  Move verified on attempt {attempt+1}")
+            return True
+        else:
+            print(f"  Verify attempt {attempt+1}: expected {expected_fen}, got {current_fen}")
+
+    print(f"  WARNING: Move verification failed after {max_retries + 1} attempts")
+    return False
+
+
 if __name__ == "__main__":
     white_small_template = cv2.resize(template, (50,50))
     black_small_template = cv2.resize(black_template, (50,50))
@@ -106,13 +169,14 @@ if __name__ == "__main__":
         grey_image = np.array(screenshot_gray)
 
         res = cv2.matchTemplate(grey_image, template, cv2.TM_CCOEFF_NORMED)
-        opp_res = cv2.matchTemplate(grey_image, new_opp, cv2.TM_CCOEFF_NORMED)
-        if np.max(opp_res) > 0.5:
-            opp_loc = np.where(opp_res >= np.max(opp_res - 1e-10))
-            print("Looking for new opponent")
-            pyautogui.click(opp_loc[1][0], opp_loc[0][0])
-            time.sleep(5)
-            continue
+        if new_opp is not None:
+            opp_res = cv2.matchTemplate(grey_image, new_opp, cv2.TM_CCOEFF_NORMED)
+            if np.max(opp_res) > 0.5:
+                opp_loc = np.where(opp_res >= np.max(opp_res - 1e-10))
+                print("Looking for new opponent")
+                pyautogui.click(opp_loc[1][0], opp_loc[0][0])
+                time.sleep(5)
+                continue
 
         threshold = np.max(res) - 0.05
         if threshold < 0.1:
@@ -203,18 +267,29 @@ if __name__ == "__main__":
                 end_y = y + (8 - int(optimal_move[3]) + 0.5) * square_size
             else:
                 start_x = x + w - (ord(optimal_move[0]) - 97 + 0.5) * square_size
-                start_y = y + w - (8 - int(optimal_move[1]) + 0.5) * square_size
+                start_y = y + h - (int(optimal_move[1]) - 1 + 0.5) * square_size
 
                 end_x = x + w - (ord(optimal_move[2]) - 97 + 0.5) * square_size
-                end_y = y + w - (8 - int(optimal_move[3]) + 0.5) * square_size
+                end_y = y + h - (int(optimal_move[3]) - 1 + 0.5) * square_size
 
                 
             #print(start_x, start_y)
-            pyautogui.click(start_x,start_y)
-            #time.sleep(abs(np.random.normal(0,0.2)))
-            pyautogui.click(end_x,end_y)
 
+            expected_fen = board.fen().split(" ")[0]
+            move_verified = False
+
+            for retry in range(3):  # 1 initial + 2 retries
+                pyautogui.click(start_x, start_y)
+                pyautogui.click(end_x, end_y)
+
+                if verify_move_played(expected_fen, max_retries=0):
+                    move_verified = True
+                    break
+                elif retry < 2:
+                    print(f"  Retrying move (attempt {retry + 2}/3)...")
+
+            if not move_verified:
+                print(f"  WARNING: Could not verify move {optimal_move} after 3 attempts")
 
             fens["move_from"] = fens["current"]
-            
-            fens["move_to"] = board.fen().split(" ")[0]
+            fens["move_to"] = expected_fen
