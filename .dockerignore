@@ -5,13 +5,11 @@ __pycache__/
 .git/
 .gitignore
 *.ipynb
-foo.png
-blank_black.png
-blank_white.png
 .vs/
 screenshots/
 logs/
 output/
-docs/
+docs/cnn_test_screenshots/
 README.md
 LICENSE
+lichess_cookies.json

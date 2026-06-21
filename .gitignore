@@ -1,6 +1,15 @@
 # custom images
 Blank_Board.png
 new_opp.png
+legacy/new_opp.png
+
+# Sensitive credentials
+lichess_cookies.json
+
+# Runtime output directories
+screenshots/
+logs/
+output/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -17,10 +17,10 @@ piece_model = load_model('Models/Piece_Classifier.h5')
 
 template = cv2.imread('Blank_Board.png', cv2.IMREAD_GRAYSCALE)
 if template is None:
-    print("Error loading template image.")
+    print("Error loading template image (Blank_Board.png).")
     exit()
 
-black_template = cv2.imread('blank_black.png', cv2.IMREAD_GRAYSCALE)
+black_template = cv2.imread('legacy/blank_black.png', cv2.IMREAD_GRAYSCALE)
 if template is None:
     print("Error loading black template image.")
     exit()
