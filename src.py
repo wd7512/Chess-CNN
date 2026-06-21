@@ -241,6 +241,7 @@ if __name__ == "__main__":
             print("playing as white:", is_white)
             print(fens["current"])
             board = chess.Board(fens["current"])
+            board.castling_rights = chess.BB_EMPTY  # Clear all castling rights
             print(board)
 
             # get optimal move
@@ -249,7 +250,7 @@ if __name__ == "__main__":
             if fens["current"] in table and False:
                 optimal_move = table[fens["current"]]
             else:
-                optimal_move = min_maxN_pruned(board,3)
+                optimal_move = min_maxN_pruned(board,3, is_root=True)
                 table[fens["current"]] = optimal_move
             board.push(optimal_move)
 
@@ -286,7 +287,75 @@ if __name__ == "__main__":
                     move_verified = True
                     break
                 elif retry < 2:
-                    print(f"  Retrying move (attempt {retry + 2}/3)...")
+                    # Board may be unchanged (move rejected) — re-classify and re-search
+                    print(f"  Move not played (attempt {retry + 1}/3), re-classifying board...")
+                    screenshot = screen_grab()
+                    screenshot_gray = screenshot.convert('L')
+                    grey_image = np.array(screenshot_gray)
+
+                    res = cv2.matchTemplate(grey_image, template, cv2.TM_CCOEFF_NORMED)
+                    threshold = np.max(res) - 0.05
+                    if threshold < 0.1:
+                        print("  Board not found during re-classification, retrying...")
+                        continue
+
+                    loc = np.where(res >= threshold)
+                    matched_regions = []
+                    if len(loc[0]) > 0:
+                        rects = []
+                        for pt in zip(*loc[::-1]):
+                            rects.append([pt[0], pt[1], template.shape[1], template.shape[0]])
+                        rects, weights = cv2.groupRectangles(rects, groupThreshold=1, eps=0.2)
+                        for rect in rects:
+                            rx, ry, rw, rh = rect
+                            matched_region = grey_image[ry:ry + rh, rx:rx + rw]
+                            matched_regions.append(matched_region)
+
+                    if not matched_regions:
+                        print("  No matched regions during re-classification, retrying...")
+                        continue
+
+                    image = cv2.resize(matched_regions[0], (200, 200))
+                    inputs = []
+                    for i in range(8):
+                        for j in range(8):
+                            inputs.append(image[i*25:(i+1)*25, j*25:(j+1)*25] / 255)
+
+                    preds = piece_model(np.array(inputs))
+                    ypred_labels = [one_hot_to_label(pred) for pred in preds]
+                    new_fen = undo_prepare_fen(ypred_labels)
+
+                    if not is_white:
+                        new_f = new_fen.split("/")
+                        new_f = [a[::-1] for a in new_f[::-1]]
+                        new_fen = "/".join(new_f)
+
+                    if new_fen == fens["current"]:
+                        # Board unchanged — move was rejected, re-search
+                        print("  Board unchanged after rejected move, re-searching...")
+                        board = chess.Board(new_fen)
+                        board.castling_rights = chess.BB_EMPTY
+                        board.turn = is_white
+                        optimal_move = min_maxN_pruned(board, 3, is_root=True)
+                        board.push(optimal_move)
+                        optimal_move = optimal_move.uci()
+                        print("  new best move", optimal_move)
+
+                        square_size = ((w + h) // 2) // 8
+                        if is_white:
+                            start_x = x + (ord(optimal_move[0]) - 97 + 0.5) * square_size
+                            start_y = y + (8 - int(optimal_move[1]) + 0.5) * square_size
+                            end_x = x + (ord(optimal_move[2]) - 97 + 0.5) * square_size
+                            end_y = y + (8 - int(optimal_move[3]) + 0.5) * square_size
+                        else:
+                            start_x = x + w - (ord(optimal_move[0]) - 97 + 0.5) * square_size
+                            start_y = y + h - (int(optimal_move[1]) - 1 + 0.5) * square_size
+                            end_x = x + w - (ord(optimal_move[2]) - 97 + 0.5) * square_size
+                            end_y = y + h - (int(optimal_move[3]) - 1 + 0.5) * square_size
+
+                        expected_fen = board.fen().split(" ")[0]
+                    else:
+                        print(f"  Board changed unexpectedly (got {new_fen}), retrying...")
 
             if not move_verified:
                 print(f"  WARNING: Could not verify move {optimal_move} after 3 attempts")

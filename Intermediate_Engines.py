@@ -98,15 +98,13 @@ def eval_space(BOARD):
 #         else:
 #             return -1
 
-def min_maxN(BOARD,N):
+def min_maxN(BOARD,N, is_root=False):
 
-    opening_move = reader.get(BOARD)
-
-    if opening_move == None:
-        pass
-    else:
-        print("Using book")
-        return opening_move.move
+    if is_root:
+        opening_move = reader.get(BOARD)
+        if opening_move is not None:
+            print("Using book")
+            return opening_move.move
 
 
     #generate list of possible moves
@@ -182,11 +180,12 @@ def min_max4(BOARD):
     return min_maxN(BOARD,4)
 
 
-def min_maxN_pruned(BOARD, N, alpha=float('-inf'), beta=float('inf')):
-    opening_move = reader.get(BOARD)
-    if opening_move:
-        print("Using book")
-        return opening_move.move
+def min_maxN_pruned(BOARD, N, alpha=float('-inf'), beta=float('inf'), is_root=False):
+    if is_root:
+        opening_move = reader.get(BOARD)
+        if opening_move:
+            print("Using book")
+            return opening_move.move
 
     moves = list(BOARD.legal_moves)
     best_move = None
