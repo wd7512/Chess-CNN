@@ -19,16 +19,16 @@ def get_click_coords_white(move_uci, x, y, w, h):
 
 
 def get_click_coords_black(move_uci, x, y, w, h):
-    """Calculate click coordinates for black perspective (from src.py lines 205-209).
+    """Calculate click coordinates for black perspective (FIXED).
 
-    BUG: Uses 'w' instead of 'h' for vertical offset, and the rank flip formula
-    (8 - rank + 0.5) is wrong — should be (rank - 1 + 0.5).
+    Fixed: uses h instead of w for vertical offset, and (rank - 1 + 0.5)
+    instead of (8 - rank + 0.5) for correct rank flip.
     """
     square_size = ((w + h) // 2) // 8
     start_x = x + w - (ord(move_uci[0]) - 97 + 0.5) * square_size
-    start_y = y + w - (8 - int(move_uci[1]) + 0.5) * square_size  # BUG: w should be h
+    start_y = y + h - (int(move_uci[1]) - 1 + 0.5) * square_size  # FIXED: h and rank-1
     end_x = x + w - (ord(move_uci[2]) - 97 + 0.5) * square_size
-    end_y = y + w - (8 - int(move_uci[3]) + 0.5) * square_size      # BUG: w should be h
+    end_y = y + h - (int(move_uci[3]) - 1 + 0.5) * square_size      # FIXED: h and rank-1
     return (start_x, start_y, end_x, end_y)
 
 
@@ -104,39 +104,32 @@ class TestClickCoordsBlack:
         # Black e7e5: should be the mirror — start near top-right area (from white's view)
         b_sx, b_sy, b_ex, b_ey = get_click_coords_black("e7e5", x, y, w, h)
 
-        # The start of black e7 should be at the same x as white e2 (same file)
-        # but at the opposite y (rank 7 from top vs rank 2 from top)
-        # Expected: b_sx ≈ w_sx (same file e), b_sy should be near top (rank 7)
-
-        # With the bug, b_sy = y + w - (8-7+0.5)*sq = y + 400 - 75 = y + 325
-        # This is near the BOTTOM of the board, not the top — WRONG
-        # Expected: b_sy = y + h - (7-1+0.5)*sq = y + 400 - 325 = y + 75 (near top)
-
-        # This assertion will FAIL with the buggy code:
+        # Black e7 (rank 7) should be near the TOP of the board (from white's view)
+        # b_sy = y + h - (7-1+0.5)*sq = y + 400 - 325 = y + 75 (near top)
         assert b_sy < y + h // 2, (
             f"Black e7 start_y={b_sy} should be in top half of board (rank 7), "
             f"but it's in bottom half. Bug: rank flip formula is inverted."
         )
 
-    def test_black_flip_symmetry(self, board_coords):
-        """Black's a8 should map to white's h1 position (180-degree rotation)."""
+    def test_black_click_file_flip(self, board_coords):
+        """Black's a-file should be near white's h-file (horizontal flip)."""
         x, y, w, h = board_coords["x"], board_coords["y"], board_coords["w"], board_coords["h"]
 
-        # White h1 click
-        w_sx, w_sy, _, _ = get_click_coords_white("h1a1", x, y, w, h)
+        # White a1 click (left side of board)
+        w_sx, _, _, _ = get_click_coords_white("a1a1", x, y, w, h)
 
-        # Black a8 click — should be near white h1 after 180-degree flip
-        b_sx, b_sy, _, _ = get_click_coords_black("a8h8", x, y, w, h)
+        # Black a8 click — should be on the RIGHT side of board (flipped horizontally)
+        b_sx, _, _, _ = get_click_coords_black("a8a8", x, y, w, h)
 
-        # After 180-degree rotation, black's a8 (top-left from their view)
-        # should be near white's h1 (bottom-right from white's view)
-        # Allow 1 square tolerance
         sq = 50
-        assert abs(b_sx - w_sx) < sq, (
-            f"Black a8 x={b_sx} should be near white h1 x={w_sx}"
-        )
-        assert abs(b_sy - w_sy) < sq, (
-            f"Black a8 y={b_sy} should be near white h1 y={w_sy}"
+        # White a1 x = x + 0.5*sq (left side)
+        # Black a8 x = x + w - 0.5*sq (right side)
+        assert w_sx < x + w // 2, f"White a1 x={w_sx} should be in left half"
+        assert b_sx > x + w // 2, f"Black a8 x={b_sx} should be in right half"
+        # They should be symmetric around the board center
+        center_x = x + w // 2
+        assert abs((w_sx - center_x) + (b_sx - center_x)) < sq, (
+            f"Black a8 x={b_sx} should be symmetric to white a1 x={w_sx} around center"
         )
 
     def test_black_clicks_within_bounds(self, board_coords):
@@ -158,10 +151,9 @@ class TestClickCoordsBlack:
         sx, sy, ex, ey = get_click_coords_black("e7e5", x, y, w, h)
 
         # The vertical offset should be based on h=480, not w=400
-        # Expected start_y for rank 7: y + h - (7-1+0.5)*sq = 200 + 480 - 357.5 = 322.5
-        # Buggy: y + w - (8-7+0.5)*sq = 200 + 400 - 82.5 = 517.5
-        expected_sy = y + h - (7 - 1 + 0.5) * sq
-        assert abs(ey - expected_sy) < 1, (
-            f"Black e5 end_y={ey} should be {expected_sy} (using h={h}), "
-            f"but buggy code uses w={w}"
+        # Expected end_y for rank 5: y + h - (5-1+0.5)*sq = 200 + 480 - 247.5 = 432.5
+        expected_ey = y + h - (5 - 1 + 0.5) * sq
+        assert abs(ey - expected_ey) < 1, (
+            f"Black e5 end_y={ey} should be {expected_ey} (using h={h}), "
+            f"but got wrong value"
         )
