@@ -162,18 +162,22 @@ Chess-CNN/
 LICHESS_URL = "https://lichess.org"
 MAX_STEPS = 200
 ENGINE_DEPTH = 3
+GAME_TIMEOUT = 1800  # 30 minutes max per game
 COOKIE_FILE = "lichess_cookies.json"
 MODEL_PATH = "Models/Piece_Classifier.h5"
 BOOK_PATH = "baron30.bin"
+PROMOTION_PIECE = "q"  # always promote to queen (simplest; under-promotion not handled)
 SELECTORS = {
-    "board": ".main-board",
-    "turn_indicator": ".rclock-turn",
-    "selected_square": ".selected",
-    "game_over": ".game-over",
-    "orientation_white": ".orientation-white",
-    "orientation_black": ".orientation-black",
+    "board": ".main-board",            # VERIFY against live Lichess
+    "turn_indicator": ".rclock-turn",  # VERIFY — likely wrong, may be ".rclock .turn"
+    "selected_square": ".selected",    # VERIFY
+    "game_over": ".game-over",         # VERIFY
+    "orientation_white": ".orientation-white",  # VERIFY
+    "orientation_black": ".orientation-black",  # VERIFY
 }
 ```
+
+**CRITICAL:** All selectors must be verified against the live Lichess site before implementation (see Phase 0.1). The `.rclock-turn` selector is likely wrong — if the turn indicator selector fails, the agent hangs forever on the first move.
 
 ### board_extractor.py
 - `get_board_rect(page, selectors) → {x, y, w, h}` — DOM element bounds
@@ -192,6 +196,8 @@ SELECTORS = {
 ### click_mapper.py
 - `square_to_pixel(square, board_rect, orientation) → (x, y)`
 - Fixes the black perspective bug from the audit (was `y + w` instead of `y + h`)
+- `uci_to_squares(move_uci) → (source, dest, promotion)` — parses UCI move, handles promotion suffix (e.g., `a7a8q` → source=`a7`, dest=`a8`, promotion=`q`). Default promotion is queen (configurable).
+- `handle_promotion(page, promo_piece)` — after clicking dest square, if promotion dialog appears, click the piece selector for `promo_piece` (default: queen)
 
 ```python
 def square_to_pixel(square, board_rect, orientation):
@@ -250,10 +256,10 @@ No Xvfb, no VNC, no display infrastructure. Cookies mounted as Docker volume.
 ```dockerfile
 FROM mcr.microsoft.com/playwright/python:v1.60.0-jammy
 WORKDIR /app
-RUN apt-get update && apt-get install -y libgl1-mesa-glx  # OpenCV headless
+RUN apt-get update && apt-get install -y \
+    libgl1-mesa-glx libglib2.0-0 libsm6 libxext6 libxrender-dev
 COPY requirements.txt .
 RUN pip install -r requirements.txt
-RUN playwright install chromium
 COPY src/ ./src/
 COPY Models/ ./Models/
 COPY baron30.bin .
@@ -263,8 +269,17 @@ CMD ["python", "src/chess_agent.py"]
 
 ```bash
 docker build -t chess-agent .
-docker run -v "$(pwd)/lichess_cookies.json:/app/lichess_cookies.json" chess-agent
+docker run --memory=2g \
+  -v "$(pwd)/lichess_cookies.json:/app/lichess_cookies.json" \
+  -v "$(pwd)/output:/app/screenshots" \
+  chess-agent
 ```
+
+Notes:
+- `playwright install chromium` is NOT needed — the official image already includes Chromium
+- OpenCV headless needs `libglib2.0-0 libsm6 libxext6 libxrender-dev` in addition to `libgl1-mesa-glx`
+- `--memory=2g` prevents Chromium OOM on long games
+- Output volume mount preserves screenshots and logs after container exit
 
 ---
 
@@ -286,6 +301,38 @@ No API calls. No network latency. The entire pipeline is local.
 ---
 
 ## End-to-End Test Plan
+
+### Phase 0: Pre-Implementation Verification (BEFORE writing any code)
+
+These checks must pass before writing the main loop. They're cheap and catch the highest-risk failures early.
+
+**0.1 — Verify Lichess DOM selectors:**
+Open Lichess in a browser, inspect the DOM, and verify every selector in `config.py`:
+- Board element and its bounding rect
+- Turn indicator (whose turn it is)
+- Selected square class
+- Game over detection
+- Orientation class (white vs black)
+- Move history panel (for PGN reconstruction)
+
+Document the date and Lichess version when verified. If any selector is wrong, fix `config.py` before proceeding.
+
+**0.2 — Test CNN against Lichess screenshots:**
+Write a 20-line script: screenshot Lichess at a known position, crop board, split tiles, run CNN, compare output to ground truth. Test at least 3 positions (opening, midgame, endgame). Report FEN-level accuracy, not tile-level. If FEN accuracy <90%, the CNN needs retraining or the extraction pipeline needs adjustment before proceeding.
+
+**0.3 — Test Docker build:**
+Build the container. Verify Chromium starts. Verify OpenCV imports without error. Verify the CNN model loads. If any of these fail, fix the Dockerfile before proceeding.
+
+**0.4 — Test cookie injection:**
+Export cookies from a local browser. Load them in the container. Navigate to Lichess. Verify the account is logged in (username visible). If not, fix the cookie format.
+
+**0.5 — Define game start procedure:**
+Document exactly how the agent enters a game. Options:
+- (a) Human creates a casual game, pastes the URL into config, agent navigates to it
+- (b) Agent navigates to "Play" page, clicks "Create game", selects casual/unrated, waits for opponent
+- (c) Agent accepts an open challenge
+
+Pick one. Document it. The "no human intervention during the game" criterion only applies AFTER the game starts.
 
 ### Phase 1: Unit tests (no Docker, no browser)
 - `test_board_extractor.py`: mock screenshot → correct tiles
@@ -320,12 +367,19 @@ No API calls. No network latency. The entire pipeline is local.
 | Risk | Mitigation |
 |------|-----------|
 | CNN misclassifies edge tiles (border contamination from audit) | Acceptable for learning project; center tiles are reliable |
-| Lichess DOM selectors change | Centralized in config.py; easy to update |
+| CNN doesn't generalize to Lichess rendering | Phase 0.2 test; fallback: retrain on Lichess screenshots or adjust extraction pipeline |
+| Lichess DOM selectors change | Centralized in config.py; easy to update; Phase 0.1 verification before implementation |
 | Board element not found | Page state detector → abort with actionable message |
 | Castling rights wrong on inferred FEN | Always clear castling rights (CNN can't see castling state) |
 | 3 consecutive move failures | Abort with full log rather than desync cascade |
 | Black perspective click math wrong | Unit test `test_click_mapper.py` verifies both orientations |
 | Opening book at every node (audit fix) | Move `reader.get()` to root-only check |
+| Lichess anti-bot detection / account suspension | Use a test account; play casual/unrated only; add human-like delays between moves |
+| Cookie expires mid-game | Check cookie validity before starting; GAME_TIMEOUT = 30min limits exposure |
+| Opponent moves during our execution | Partial board diff (only squares involved in move) rather than full board comparison |
+| WebSocket disconnect / network partition | Heartbeat: if no DOM change for >30s during opponent's turn, check connection |
+| Container killed mid-game | Signal handler for SIGTERM/SIGINT: save partial PGN, close browser cleanly |
+| Promotion needed but not handled | Default to queen promotion; under-promotion not supported (documented limitation) |
 
 ---
 
