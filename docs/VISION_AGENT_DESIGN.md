@@ -347,3 +347,37 @@ No API calls. No network latency. The entire pipeline is local.
 - GUI or web interface (CLI logging only)
 - Full pre-game automation (cookie injection + manual game start is Phase 1)
 - Fixing CNN edge tile accuracy (requires retraining or better board cropping)
+
+---
+
+## Final Thoughts
+
+### Will this work against a real opponent?
+
+Yes, with one big caveat.
+
+The pipeline is sound: Playwright screenshot → OpenCV crop → CNN classify → engine → Playwright click. Every component is either proven (CNN, engine) or a clean DOM-based replacement for something that was already working (template matching, pyautogui).
+
+The caveat: the CNN was trained on tiles from a specific chess GUI. Lichess renders differently — different piece styles, different board colors, different tile dimensions after resize. The CNN may misclassify heavily on Lichess tiles. This is the single highest-risk item.
+
+**Mitigation:** test the CNN against Lichess screenshots before building the loop. A 20-line script: screenshot Lichess, crop board, split tiles, run CNN, compare output to known position. If accuracy is >90%, proceed. If not, the CNN needs retraining or the board extraction needs adjustment (different resize, padding, etc.).
+
+### What could go wrong mid-game
+
+1. **CNN misclassifies one square** → engine picks a legal move on a wrong position → click lands on the wrong square → Lichess rejects the move → DOM verify catches it → retry. This already happens in the old code. The retry loop handles it.
+
+2. **Lichess DOM structure changes** → selectors don't match → page state detector aborts with a clear message. Fix: update `config.py`.
+
+3. **Cookie expires mid-game** → page redirects to login → page state detector catches it → abort. Fix: re-export cookies.
+
+4. **Opponent plays fast** → our 3-4s per move is fine for casual/unrated. For blitz (3+0), it's too slow. Stick to casual games.
+
+### What this project actually teaches
+
+Not "how to use a vision API." It's about:
+- Replacing brittle pixel-based automation with DOM-aware automation
+- Keeping what works (CNN, engine) and fixing what doesn't (screen capture, clicks, verification)
+- Building a testable pipeline where each component can be unit-tested in isolation
+- Running a real browser in Docker headlessly
+
+The CNN is the interesting part. Everything else is plumbing. The question is whether the CNN generalizes to Lichess. That's the experiment.
