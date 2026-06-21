@@ -1,4 +1,4 @@
-# Vision-Driven Chess Agent — Plan
+# Vision-Driven Chess Agent — Design Document
 
 **Date:** 2026-06-21
 **Author:** OWL
@@ -9,7 +9,7 @@
 
 ## Goal
 
-Replace Chess-CNN's brittle vision pipeline (template matching + CNN + manual coordinate math) with a vision LLM that reads the board from screenshots and returns click actions. The engine stays unchanged.
+Replace Chess-CNN's brittle vision pipeline (template matching + CNN + manual coordinate math) with a multi-modal vision model that reads the board from screenshots and returns click actions. The engine stays unchanged.
 
 **Final gate criteria:**
 - [ ] Script runs inside Docker (no macOS-only dependencies)
@@ -89,7 +89,7 @@ Replace Chess-CNN's brittle vision pipeline (template matching + CNN + manual co
 
 | Component | Responsibility | Why |
 |-----------|---------------|-----|
-| Vision LLM | Spatial understanding: read board state, identify square locations | Good at visual pattern recognition |
+| Vision model | Spatial understanding: read board state, identify square locations | Good at visual pattern recognition |
 | DOM | State detection: whose turn, game over, board changed, selection confirmed | Free, reliable, instant |
 | Engine | Chess logic: what move to play | Deterministic, fast (<0.2s) |
 | Playwright | Browser control: screenshot, click, wait for selectors | Cross-platform, Docker-friendly |
@@ -104,7 +104,7 @@ Each component does what it's best at. No component does another's job.
 Chess-CNN/
 ├── docs/
 │   ├── AUDIT.md                    # existing audit
-│   ├── PLAN.md                     # this file
+│   ├── VISION_AGENT_DESIGN.md        # this file
 │   └── E2E_TEST.md                 # e2e test plan + results
 ├── src/
 │   ├── chess_agent.py              # main loop, orchestration
