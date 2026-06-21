@@ -1,0 +1,14 @@
+[
+    {
+        "name": "lila",
+        "value": "YOUR_SESSION_TOKEN_HERE",
+        "domain": ".lichess.org",
+        "path": "/"
+    },
+    {
+        "name": "lila2",
+        "value": "YOUR_REMEMBER_TOKEN_HERE",
+        "domain": ".lichess.org",
+        "path": "/"
+    }
+]

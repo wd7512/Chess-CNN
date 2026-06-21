@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.git/
+.gitignore
+*.ipynb
+foo.png
+blank_black.png
+blank_white.png
+.vs/
+screenshots/
+logs/
+output/
+docs/
+README.md
+LICENSE
