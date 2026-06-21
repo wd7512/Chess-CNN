@@ -1,9 +1,6 @@
 import chess
 from copy import deepcopy
-import random
-import time
 import chess.polyglot
-import numpy as np
 
 
 
@@ -34,10 +31,6 @@ The main issues with this simple min max are as follows
 
 #opening book
 reader = chess.polyglot.open_reader('baron30.bin')
-
-def random_agent(BOARD):
-
-    return random.choice(list(BOARD.legal_moves))
 
 scoring= {'p': -100,
           'n': -300,
@@ -164,20 +157,15 @@ def min_maxN(BOARD,N, is_root=False):
     
 
     return best_move
-        
-# a simple wrapper function as the display only gives one imput , BOARD
 
-def min_max1(BOARD):
-    return min_maxN(BOARD,1)
+
+# --- Wrapper functions for convenience ---
 
 def min_max2(BOARD):
-    return min_maxN(BOARD,2)
+    return min_maxN(BOARD, 2)
 
 def min_max3(BOARD):
-    return min_maxN(BOARD,3)
-
-def min_max4(BOARD):
-    return min_maxN(BOARD,4)
+    return min_maxN(BOARD, 3)
 
 
 def min_maxN_pruned(BOARD, N, alpha=float('-inf'), beta=float('inf'), is_root=False):

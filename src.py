@@ -3,14 +3,17 @@ import cv2
 import time
 import numpy as np
 import chess
-from PIL import ImageGrab
+# PIL ImageGrab replaced by mss in new_src.py
+# from PIL import ImageGrab
 import pyautogui
 from Intermediate_Engines import min_max2, min_max3, min_maxN_pruned
-import matplotlib.pyplot as plt
+# matplotlib debug output disabled
+# import matplotlib.pyplot as plt
 from new_src import screen_grab
 
 piece_model = load_model('Models/Piece_Classifier.h5')
-orientation_model = load_model('Models/Orientation_Classifier.h5')
+# orientation_model loaded but never used — MSE heuristic used instead
+# orientation_model = load_model('Models/Orientation_Classifier.h5')
 
 template = cv2.imread('Blank_Board.png', cv2.IMREAD_GRAYSCALE)
 if template is None:
@@ -199,11 +202,12 @@ if __name__ == "__main__":
                 matched_region = grey_image[y:y + h, x:x + w]
                 matched_regions.append(matched_region)
 
-        image = cv2.resize(matched_regions[0], (200,200))
-        orien_image = cv2.resize(matched_regions[0], (50,50))
+        image = cv2.resize(matched_regions[0], (200, 200))
+        orien_image = cv2.resize(matched_regions[0], (50, 50))
 
-        plt.imshow(orien_image)
-        plt.savefig("foo.png")
+        # Debug: save orientation image (disable in production)
+        # plt.imshow(orien_image)
+        # plt.savefig("foo.png")
 
         mse_white = np.mean((orien_image[:,-1:] - white_small_template[:,-1:]) ** 2)
         mse_black = np.mean((orien_image[:,-1:] - black_small_template[:,-1:]) ** 2)
