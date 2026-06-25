@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import signal
 import time
 from datetime import datetime, timezone
@@ -11,6 +12,10 @@ import numpy as np
 from chess_agent.board_extractor import crop_board, split_tiles
 from chess_agent.config import (
     COOKIE_PATH,
+    E2E_LICHESS_HOMEPAGE,
+    E2E_MODE_ENV_VAR,
+    E2E_MODE_VALUE,
+    E2E_OPPONENT_TIMEOUT,
     GAME_TIMEOUT,
     LOG_DIR,
     MAX_RETRIES,
@@ -46,10 +51,11 @@ def _json_log(step, **kwargs):
 
 
 class ChessAgent:
-    def __init__(self, game_url, our_color, cookie_path=None):
+    def __init__(self, game_url=None, our_color=None, cookie_path=None, e2e=None):
         self.game_url = game_url
         self.our_color = our_color
         self.cookie_path = cookie_path or COOKIE_PATH
+        self.e2e = e2e if e2e is not None else (os.environ.get(E2E_MODE_ENV_VAR) == E2E_MODE_VALUE)
         self.game_state = GameState()
         self._running = True
         self._browser = None
@@ -75,11 +81,16 @@ class ChessAgent:
                 no_viewport=True,
                 viewport={"width": 1280, "height": 900},
             )
-            self._inject_cookies()
+            if not self.e2e:
+                self._inject_cookies()
             self._page = self._context.new_page()
 
             dom_reader = DOMReader(self._page)
             dom_actor = DOMActor(self._page, dom_reader)
+
+            if self.e2e:
+                self._e2e_setup(dom_reader)
+
             page_manager = PageManager(self._page, dom_reader, self.our_color)
             classifier = PieceClassifier(PIECE_CLASSIFIER_PATH)
 
@@ -100,10 +111,32 @@ class ChessAgent:
         except Exception as e:
             _json_log(0, event="cookie_error", error=str(e))
 
+    def _e2e_setup(self, dom_reader):
+        self._page.goto(E2E_LICHESS_HOMEPAGE, wait_until='domcontentloaded')
+        self._page.wait_for_timeout(1000)
+
+        self._page.get_by_role("link", name="Play with a friend").click()
+
+        self._page.wait_for_url("https://lichess.org/**", timeout=15000)
+
+        _json_log(0, event="e2e_game_created", url=self._page.url)
+
+        try:
+            self._page.wait_for_selector("cg-board", timeout=E2E_OPPONENT_TIMEOUT * 1000)
+        except Exception:
+            _json_log(0, event="e2e_opponent_timeout", timeout=E2E_OPPONENT_TIMEOUT)
+            raise
+
+        self._page.wait_for_timeout(500)
+        self.our_color = dom_reader.get_orientation()
+
+        _json_log(0, event="e2e_game_started", url=self._page.url, color=self.our_color)
+
     def _main_loop(self, pm, reader, actor, classifier):
         game_start = time.time()
 
-        pm.navigate_to_game(self.game_url)
+        if not self.e2e:
+            pm.navigate_to_game(self.game_url)
 
         step = 0
         consecutive_failures = 0

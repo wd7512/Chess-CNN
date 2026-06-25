@@ -48,3 +48,9 @@ AFTER_CLICK_WAIT = 1.0
 VERIFY_SELECTED_TIMEOUT = 2.0
 VERIFY_MOVE_TIMEOUT = 3.0
 MAX_RETRIES = 3
+
+# --- E2E Mode ---
+E2E_OPPONENT_TIMEOUT = 120  # Maximum seconds to wait for opponent to join
+E2E_MODE_ENV_VAR = "GAME_MODE"
+E2E_MODE_VALUE = "e2e"
+E2E_LICHESS_HOMEPAGE = "https://lichess.org/"
