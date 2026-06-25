@@ -2,13 +2,14 @@
 <html>
 <head><meta charset="utf-8"><title>Mock Lichess</title>
 <style>
-  .cg-wrap { width: 400px; height: 400px; }
+  .cg-wrap { width: 400px; height: 400px; position: relative; }
   cg-board { display: grid; grid-template-columns: repeat(8, 1fr); width: 400px; height: 400px; background: #ccc; }
-  square { width: 50px; height: 50px; display: inline-block; }
+  square { width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; position: relative; }
   square.light { background: #f0d9b5; }
   square.dark { background: #b58863; }
   square.selected { outline: 3px solid yellow; }
   square.last-move { background: rgba(155, 199, 0, 0.41); }
+  square .piece { font-size: 36px; line-height: 50px; text-align: center; user-select: none; pointer-events: none; }
   .rclock { padding: 10px; border: 1px solid #ccc; }
   .rclock.running { background: #e8f5e9; }
   .rclock-white { color: #000; }
@@ -22,89 +23,164 @@
 <body>
 <div id="board-container">
   <div class="cg-wrap cgv1 orientation-white manipulable">
-    <cg-board>
-      <square class="light" data-coord="a8"></square>
-      <square class="dark" data-coord="b8"></square>
-      <square class="light" data-coord="c8"></square>
-      <square class="dark" data-coord="d8"></square>
-      <square class="light" data-coord="e8"></square>
-      <square class="dark" data-coord="f8"></square>
-      <square class="light" data-coord="g8"></square>
-      <square class="dark" data-coord="h8"></square>
-      <square class="dark" data-coord="a7"></square>
-      <square class="light" data-coord="b7"></square>
-      <square class="dark" data-coord="c7"></square>
-      <square class="light" data-coord="d7"></square>
-      <square class="dark" data-coord="e7"></square>
-      <square class="light" data-coord="f7"></square>
-      <square class="dark" data-coord="g7"></square>
-      <square class="light" data-coord="h7"></square>
-      <square class="light" data-coord="a6"></square>
-      <square class="dark" data-coord="b6"></square>
-      <square class="light" data-coord="c6"></square>
-      <square class="dark" data-coord="d6"></square>
-      <square class="light" data-coord="e6"></square>
-      <square class="dark" data-coord="f6"></square>
-      <square class="light" data-coord="g6"></square>
-      <square class="dark" data-coord="h6"></square>
-      <square class="dark" data-coord="a5"></square>
-      <square class="light" data-coord="b5"></square>
-      <square class="dark" data-coord="c5"></square>
-      <square class="light" data-coord="d5"></square>
-      <square class="dark" data-coord="e5"></square>
-      <square class="light" data-coord="f5"></square>
-      <square class="dark" data-coord="g5"></square>
-      <square class="light" data-coord="h5"></square>
-      <square class="light" data-coord="a4"></square>
-      <square class="dark" data-coord="b4"></square>
-      <square class="light" data-coord="c4"></square>
-      <square class="dark" data-coord="d4"></square>
-      <square class="light" data-coord="e4"></square>
-      <square class="dark" data-coord="f4"></square>
-      <square class="light" data-coord="g4"></square>
-      <square class="dark" data-coord="h4"></square>
-      <square class="dark" data-coord="a3"></square>
-      <square class="light" data-coord="b3"></square>
-      <square class="dark" data-coord="c3"></square>
-      <square class="light" data-coord="d3"></square>
-      <square class="dark" data-coord="e3"></square>
-      <square class="light" data-coord="f3"></square>
-      <square class="dark" data-coord="g3"></square>
-      <square class="light" data-coord="h3"></square>
-      <square class="light" data-coord="a2"></square>
-      <square class="dark" data-coord="b2"></square>
-      <square class="light" data-coord="c2"></square>
-      <square class="dark" data-coord="d2"></square>
-      <square class="light" data-coord="e2"></square>
-      <square class="dark" data-coord="f2"></square>
-      <square class="light" data-coord="g2"></square>
-      <square class="dark" data-coord="h2"></square>
-      <square class="dark" data-coord="a1"></square>
-      <square class="light" data-coord="b1"></square>
-      <square class="dark" data-coord="c1"></square>
-      <square class="light" data-coord="d1"></square>
-      <square class="dark" data-coord="e1"></square>
-      <square class="light" data-coord="f1"></square>
-      <square class="dark" data-coord="g1"></square>
-      <square class="light" data-coord="h1"></square>
+    <cg-board id="board">
     </cg-board>
   </div>
   <div id="clocks">
     <div class="rclock rclock-bottom rclock-white running"><span class="time">10:00</span></div>
     <div class="rclock rclock-top rclock-black"><span class="time">10:00</span></div>
   </div>
+  <div id="status"></div>
 </div>
 <script>
+  const UNICODE_PIECES = {
+    'K': '\u2654', 'Q': '\u2655', 'R': '\u2656', 'B': '\u2657', 'N': '\u2658', 'P': '\u2659',
+    'k': '\u265A', 'q': '\u265B', 'r': '\u265C', 'b': '\u265D', 'n': '\u265E', 'p': '\u265F'
+  };
+  const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
+
+  function fenToPieces(fen) {
+    const placement = fen.split(' ')[0];
+    const pieces = [];
+    for (const ch of placement) {
+      if (ch === '/') continue;
+      if (ch >= '1' && ch <= '8') {
+        for (let i = 0; i < parseInt(ch); i++) pieces.push(null);
+      } else {
+        pieces.push(ch);
+      }
+    }
+    return pieces;
+  }
+
+  function renderBoard(fen) {
+    const board = document.getElementById('board');
+    board.innerHTML = '';
+    const pieces = fenToPieces(fen);
+    const isWhite = document.querySelector('.cg-wrap').classList.contains('orientation-white');
+    for (let i = 0; i < 64; i++) {
+      const file = i % 8;
+      const rank = Math.floor(i / 8);
+      const sq = document.createElement('square');
+      const isLight = (file + rank) % 2 === 0;
+      sq.className = isLight ? 'light' : 'dark';
+      const displayRank = isWhite ? 8 - rank : rank + 1;
+      const displayFile = isWhite ? String.fromCharCode(97 + file) : String.fromCharCode(104 - file);
+      sq.dataset.coord = displayFile + displayRank;
+      if (pieces[i]) {
+        const p = document.createElement('span');
+        p.className = 'piece';
+        p.textContent = UNICODE_PIECES[pieces[i]];
+        sq.appendChild(p);
+      }
+      board.appendChild(sq);
+    }
+  }
+
+  function getPieceMap() {
+    const map = {};
+    document.querySelectorAll('square').forEach(sq => {
+      const coord = sq.dataset.coord;
+      const pieceEl = sq.querySelector('.piece');
+      if (pieceEl) {
+        const ch = pieceEl.textContent;
+        for (const [key, val] of Object.entries(UNICODE_PIECES)) {
+          if (val === ch) { map[coord] = key; break; }
+        }
+      } else {
+        map[coord] = null;
+      }
+    });
+    return map;
+  }
+
+  function piecesToFen(pieceMap) {
+    const isWhite = document.querySelector('.cg-wrap').classList.contains('orientation-white');
+    const ranks = [];
+    for (let r = 0; r < 8; r++) {
+      const displayRank = isWhite ? 8 - r : r + 1;
+      const row = [];
+      for (let f = 0; f < 8; f++) {
+        const displayFile = isWhite ? String.fromCharCode(97 + f) : String.fromCharCode(104 - f);
+        const coord = displayFile + displayRank;
+        row.push(pieceMap[coord] || '-');
+      }
+      ranks.push(row);
+    }
+    const fenRanks = ranks.map(row => {
+      let s = '';
+      let empty = 0;
+      for (const p of row) {
+        if (p === '-') { empty++; }
+        else { if (empty) { s += empty; empty = 0; } s += p; }
+      }
+      if (empty) s += empty;
+      return s;
+    });
+    const turn = document.querySelector('.rclock-white.running') ? 'w' : 'b';
+    return fenRanks.join('/') + ' ' + turn + ' KQkq - 0 1';
+  }
+
+  window.applyMove = function(uci) {
+    const source = uci.slice(0, 2);
+    const dest = uci.slice(2, 4);
+    const srcSq = document.querySelector(`square[data-coord="${source}"]`);
+    const dstSq = document.querySelector(`square[data-coord="${dest}"]`);
+    if (!srcSq || !dstSq) return false;
+
+    const pieceEl = srcSq.querySelector('.piece');
+    const captured = dstSq.querySelector('.piece');
+    if (captured) captured.remove();
+    if (pieceEl) dstSq.appendChild(pieceEl);
+
+    document.querySelectorAll('square.last-move').forEach(s => s.classList.remove('last-move'));
+    srcSq.classList.add('last-move');
+    dstSq.classList.add('last-move');
+
+    window.clearSelected();
+    window.toggleTurn();
+    return true;
+  };
+
+  window.getBoardFen = function() {
+    return piecesToFen(getPieceMap()).split(' ')[0];
+  };
+
+  window.getBoardState = function() {
+    return piecesToFen(getPieceMap());
+  };
+
+  window.setBoardState = function(fen) {
+    renderBoard(fen || INITIAL_FEN);
+  };
+
+  window.toggleTurn = function() {
+    const clocks = document.querySelectorAll('.rclock');
+    clocks.forEach(c => c.classList.remove('running'));
+    const currentWhite = document.querySelector('.rclock-white.running');
+    if (currentWhite) {
+      document.querySelector('.rclock-black').classList.add('running');
+    } else {
+      document.querySelector('.rclock-white').classList.add('running');
+    }
+  };
+
   window.setOrientation = function(ori) {
     const wrap = document.querySelector('.cg-wrap');
     wrap.classList.remove('orientation-white', 'orientation-black');
     wrap.classList.add('orientation-' + ori);
+    const pieces = getPieceMap();
+    renderBoard('8/8/8/8/8/8/8/8');
+    const fen = piecesToFen(pieces);
+    renderBoard(fen.split(' ')[0]);
   };
+
   window.setTurn = function(color) {
     const clocks = document.querySelectorAll('.rclock');
     clocks.forEach(c => c.classList.remove('running'));
     document.querySelector('.rclock-' + color).classList.add('running');
   };
+
   window.showGameOver = function(show) {
     var el = document.querySelector('.game-over');
     if (show && !el) {
@@ -116,6 +192,7 @@
       el.remove();
     }
   };
+
   window.showDrawOffer = function(show) {
     var el = document.querySelector('.draw-offer');
     if (show && !el) {
@@ -127,21 +204,30 @@
       el.remove();
     }
   };
+
   window.addLastMove = function(coords) {
     document.querySelectorAll('square.last-move').forEach(s => s.classList.remove('last-move'));
     coords.forEach(c => {
       document.querySelector('square[data-coord="' + c + '"]').classList.add('last-move');
     });
   };
+
   window.clearSelected = function() {
     document.querySelectorAll('square.selected').forEach(s => s.classList.remove('selected'));
   };
+
+  renderBoard(INITIAL_FEN);
+
   document.addEventListener('click', function(e) {
     var sq = e.target.closest('square');
     if (!sq) return;
     var prev = document.querySelector('square.selected');
-    if (prev) {
-      prev.classList.remove('selected');
+    if (prev && prev !== sq) {
+      var src = prev.dataset.coord;
+      var dst = sq.dataset.coord;
+      window.applyMove(src + dst);
+    } else if (prev === sq) {
+      sq.classList.remove('selected');
     } else {
       sq.classList.add('selected');
     }
